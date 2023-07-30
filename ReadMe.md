@@ -18,7 +18,7 @@ cd Particle-Systems
 ```
 
 ### CMake
-- Requires CMake 3.9 or greater ([CMake.org](https://cmake.org))
+- Requires CMake 3.12 or greater ([CMake.org](https://cmake.org))
 
 ``` bash
 mkdir build && cd build

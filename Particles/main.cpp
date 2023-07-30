@@ -8,8 +8,9 @@
 #include <cstdint>
 #include <chrono>
 #include <random>
-
-
+#include <vector>
+#include <thread>
+#include <barrier>
 
 constexpr uint32_t DEFAULT_NUM_PARTICLES = 1u << 25u;
 
@@ -21,18 +22,20 @@ const float INITIAL_SIZE_MAX = 100.0f;
 const Vector3 INITIAL_POS_MIN = { -100.0f, -100.0f, -100.0f };
 const Vector3 INITIAL_POS_MAX = { 100.0f, 100.0f, 100.0f };
 
+
 //Generates a random number between min and max. 
 float RandomRange(float min, float max) {
-    static std::mt19937 generator(std::random_device{}());  //Generate random numbers using a Mersenne Twister
+    thread_local std::mt19937 generator(std::random_device{}());  //Generate random numbers using a Mersenne Twister
     std::uniform_real_distribution<> dist(min, max);
 
     return static_cast<float>(dist(generator));
 }
 
+
 //Initialize the Particle data. 
-void InitParticles(Particles& particles, const size_t num_particles) {
+void InitParticles(Particles& particles, const size_t startIdx, const size_t count) {
     //Iterate over each particle, and assign a random Position, Velocity, Speed and Mass. 
-    for (size_t i = 0; i < num_particles; i++) {
+    for (size_t i = startIdx; i < (startIdx + count); i++) {
         
         particles.speeds[i] = RandomRange(INITIAL_SPEED_MIN, INITIAL_SPEED_MAX);
         particles.masses[i] = RandomRange(INITIAL_SIZE_MIN, INITIAL_SIZE_MAX);
@@ -50,9 +53,9 @@ void InitParticles(Particles& particles, const size_t num_particles) {
 
 
 //Update all particle states
-void UpdateParticles(Particles& particles, const size_t num_particles, const float deltaTime) {
+void UpdateParticles(Particles& particles, const size_t startIdx, const size_t count, const float deltaTime) {
     //Iterate over each particle, and update their positions. 
-    for (size_t i = 0; i < num_particles; i++) {
+    for (size_t i = startIdx; i < (startIdx + count); i++) {
         (particles.masses[i] < 0.0f) ? particles.masses[i] = FLT_EPSILON : NULL;   //Ensure the size is greater than 0. 
         const float k = (1.0f / particles.masses[i]);      //Particles with more mass move slower than those with less, even at the same speed. 
         
@@ -64,10 +67,13 @@ void UpdateParticles(Particles& particles, const size_t num_particles, const flo
 
 
 //Launch the application
-//  -p / - particles : How many particles to simulate
+//  -p / -particles : How many particles to simulate
+//  -t / -threads : How many threads to launch
 int main(int argc, const char** argv){
     
     uint32_t num_particles = DEFAULT_NUM_PARTICLES;
+    uint32_t num_threads = std::thread::hardware_concurrency();     //Use as many threads as possible by default.
+
     //Check if any CMD arguments were passed through
     if (argc > 1) { //argv[0] is the name of the program. 
         for (int i = 1; i < argc; i++) {
@@ -75,35 +81,82 @@ int main(int argc, const char** argv){
             if(std::strcmp(argv[i], "-p") == 0 || std::strcmp(argv[i], "-particles") == 0) {
                 num_particles = std::atoi(argv[i + 1]); //The caller specified how many particles to use, so retrieve them.
             }
+
+            if (std::strcmp(argv[i], "-t") == 0 || std::strcmp(argv[i], "-threads") == 0) {
+                num_threads = std::atoi(argv[i + 1]);   //The caller specified how many threads to run, so retrieve them. 
+            }
         }
     }
 
-    printf("Simulating %u Particles.\nCTRL + C to exit.\n", num_particles);
+    printf("Simulating %u Particles utilizing %d threads.\nCTRL + C to exit.\n", num_particles, num_threads);
+
+    std::vector<std::thread> threads(num_threads - 1);
+    const uint32_t block_size = (num_particles / num_threads);  //How many particles each thread updates
+    const uint32_t block_remainder = num_particles % num_threads;   //Any remaining particles left out of the evenly-sized blocks. 
+    
+    printf("%d Particles Split into blocks of %d (+ %d)\n",num_particles, block_size, block_remainder);
+
 
     //Create the number of particles specified
     Particles particles(num_particles);
     {
+        //Dispatch n - 1 threads to initialise the particles, as the process already owns 1 thread. 
+        for (size_t i = 0; i < (num_threads - 1); i++) {
+            threads[i] = std::thread(InitParticles, std::ref(particles), block_size * i, block_size);
+        }
+
         const auto init_start = std::chrono::steady_clock::now();
-        InitParticles(particles, num_particles);
+        
+        InitParticles(particles, block_size * (num_threads - 1), (block_size + block_remainder));   //The main thread works on its own block, including any remaining particles not updated. 
+        
+        //Wait for all threads to complete. 
+        for (auto& t : threads) {
+            t.join();
+        }
+
         const auto init_end = std::chrono::steady_clock::now();
         const float initTime = std::chrono::duration_cast<std::chrono::milliseconds>(init_end - init_start).count() / 1000.0f;  //Compute how long particle initialization took in ms. 
 
         printf("Particle Initialization Complete in %fms.\n", initTime);
     }
 
-    //Simulate Forever
+    //Simulate Particles across our Threads.
     float deltaTime = 0.0f;
     float elapsedTime = 0.0f; 
+    auto update_start = std::chrono::steady_clock::now();
 
-    while (true) {
-        const auto update_start = std::chrono::steady_clock::now();
-        UpdateParticles(particles, num_particles, deltaTime);
-        const auto update_end = std::chrono::steady_clock::now();
+    //Create a synchronisation barrier to control our threads. 
+    std::barrier particle_sync(num_threads, [&] () noexcept {   //When all threads "arrive" at the barrier, this code will execute. 
+        const auto update_end = std::chrono::steady_clock::now();   //Finish the current frame
 
         deltaTime = std::chrono::duration_cast<std::chrono::milliseconds>(update_end - update_start).count() / 1000.0f; //Delta Time is in Milliseconds
         elapsedTime += deltaTime;
-
         printf("\rUpdated %u Particles in %fms\t(%03.2fs elapsed)", num_particles, deltaTime, elapsedTime);
+        
+        update_start = std::chrono::steady_clock::now();
+        });
+
+    //Kick the update job on n threads. 
+    for (size_t i = 0; i < (num_threads - 1); i++) {
+        threads[i] = std::thread([&particle_sync, &particles, i, block_size, &deltaTime] {
+            while (true) {
+                UpdateParticles(particles, block_size * i, block_size, deltaTime);
+
+                particle_sync.arrive_and_wait();    //Wait for the other threads to finish before continuing. 
+            }
+            });
+    }
+    
+    //Perform the same work on the main thread
+    while (true) {
+        UpdateParticles(particles, block_size * (num_threads - 1), (block_size + block_remainder), deltaTime);
+
+        particle_sync.arrive_and_wait();    //Wait for the other threads to finish before continuing. 
+    }
+
+    //When we're done, make sure to join all threads before exiting.
+    for (auto& t : threads) {
+        t.join();
     }
 
 }
