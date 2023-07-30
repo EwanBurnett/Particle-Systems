@@ -6,9 +6,9 @@
 #include <cstdio>
 #include <Particle.h>
 #include <cstdint>
-#include <vector>
 #include <chrono>
 #include <random>
+
 
 
 constexpr uint32_t DEFAULT_NUM_PARTICLES = 1u << 25u;
@@ -30,34 +30,35 @@ float RandomRange(float min, float max) {
 }
 
 //Initialize the Particle data. 
-void InitParticles(std::vector<Particle>& particles) {
+void InitParticles(Particles& particles, const size_t num_particles) {
     //Iterate over each particle, and assign a random Position, Velocity, Speed and Mass. 
-    for (auto& p : particles) {
-        p.speed = RandomRange(INITIAL_SPEED_MIN, INITIAL_SPEED_MAX);
-        p.mass = RandomRange(INITIAL_SIZE_MIN, INITIAL_SIZE_MAX);
+    for (size_t i = 0; i < num_particles; i++) {
+        
+        particles.speeds[i] = RandomRange(INITIAL_SPEED_MIN, INITIAL_SPEED_MAX);
+        particles.masses[i] = RandomRange(INITIAL_SIZE_MIN, INITIAL_SIZE_MAX);
 
-        p.position.x = RandomRange(INITIAL_POS_MIN.x, INITIAL_POS_MAX.x);
-        p.position.y = RandomRange(INITIAL_POS_MIN.y, INITIAL_POS_MAX.y);
-        p.position.z = RandomRange(INITIAL_POS_MIN.z, INITIAL_POS_MAX.z);
+        particles.positions[i].x = RandomRange(INITIAL_POS_MIN.x, INITIAL_POS_MAX.x);
+        particles.positions[i].y = RandomRange(INITIAL_POS_MIN.y, INITIAL_POS_MAX.y);
+        particles.positions[i].z = RandomRange(INITIAL_POS_MIN.z, INITIAL_POS_MAX.z);
 
         //Velocity is clamped between -1 and 1, as it represents a direction vector. 
-        p.velocity.x = RandomRange(-1.0f, 1.0f); 
-        p.velocity.y = RandomRange(-1.0f, 1.0f);
-        p.velocity.z = RandomRange(-1.0f, 1.0f);
+        particles.velocities[i].x = RandomRange(-1.0f, 1.0f); 
+        particles.velocities[i].y = RandomRange(-1.0f, 1.0f);
+        particles.velocities[i].z = RandomRange(-1.0f, 1.0f);
     }
 }
 
 
 //Update all particle states
-void UpdateParticles(std::vector<Particle>& particles, const float deltaTime) {
+void UpdateParticles(Particles& particles, const size_t num_particles, const float deltaTime) {
     //Iterate over each particle, and update their positions. 
-    for (auto& p : particles) {
-        (p.mass < 0.0f) ? p.mass = FLT_EPSILON : NULL;   //Ensure the size is greater than 0. 
-        float k = (1.0f / p.mass);      //Particles with more mass move slower than those with less, even at the same speed. 
+    for (size_t i = 0; i < num_particles; i++) {
+        (particles.masses[i] < 0.0f) ? particles.masses[i] = FLT_EPSILON : NULL;   //Ensure the size is greater than 0. 
+        const float k = (1.0f / particles.masses[i]);      //Particles with more mass move slower than those with less, even at the same speed. 
         
-        p.position.x += (p.velocity.x * p.speed * k * deltaTime);
-        p.position.y += (p.velocity.y * p.speed * k * deltaTime);
-        p.position.z += (p.velocity.z * p.speed * k * deltaTime);
+        particles.positions[i].x += (particles.velocities[i].x * particles.speeds[i] * k * deltaTime);
+        particles.positions[i].y += (particles.velocities[i].y * particles.speeds[i] * k * deltaTime);
+        particles.positions[i].z += (particles.velocities[i].z * particles.speeds[i] * k * deltaTime);
     }
 }
 
@@ -80,10 +81,10 @@ int main(int argc, const char** argv){
     printf("Simulating %u Particles.\nCTRL + C to exit.\n", num_particles);
 
     //Create the number of particles specified
-    std::vector<Particle> particles(num_particles);
+    Particles particles(num_particles);
     {
         const auto init_start = std::chrono::steady_clock::now();
-        InitParticles(particles);
+        InitParticles(particles, num_particles);
         const auto init_end = std::chrono::steady_clock::now();
         const float initTime = std::chrono::duration_cast<std::chrono::milliseconds>(init_end - init_start).count() / 1000.0f;  //Compute how long particle initialization took in ms. 
 
@@ -96,7 +97,7 @@ int main(int argc, const char** argv){
 
     while (true) {
         const auto update_start = std::chrono::steady_clock::now();
-        UpdateParticles(particles, deltaTime);
+        UpdateParticles(particles, num_particles, deltaTime);
         const auto update_end = std::chrono::steady_clock::now();
 
         deltaTime = std::chrono::duration_cast<std::chrono::milliseconds>(update_end - update_start).count() / 1000.0f; //Delta Time is in Milliseconds
