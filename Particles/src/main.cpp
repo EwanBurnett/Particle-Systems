@@ -4,13 +4,14 @@
 */
 
 #include <cstdio>
-#include <Particle.h>
 #include <cstdint>
 #include <chrono>
 #include <random>
 #include <vector>
 #include <thread>
 #include <barrier>
+
+#include "Particle.h"
 
 constexpr uint32_t DEFAULT_NUM_PARTICLES = 1u << 25u;
 
