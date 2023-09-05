@@ -6,6 +6,8 @@ A Project exploring how Parallelism can be used to simulate a large number of Pa
 
 ## Build Instructions
 
+note: Requires C++ 20 
+    - GCC 10 or above
 - Install the latest CUDA Toolkit for your platform
     - Windows 
         - Follow the download instructions on the [CUDA Toolkit Developer Portal](https://developer.nvidia.com/cuda-toolkit)

@@ -1,4 +1,11 @@
 .vs/
+
 [Bb][Uu][Ii][Ll][Dd]/
 [Ll][Ii][Bb]/
 [Bb][Ii][Nn]/
+
+*.out
+*.exe 
+*.o
+*.swp
+

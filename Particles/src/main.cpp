@@ -2,15 +2,15 @@
     Particle Simulation
     Ewan Burnett - 2023
 */
-
+#include <cstring>
 #include <cstdio>
 #include <cstdint>
+#include <cfloat>
 #include <chrono>
 #include <random>
 #include <vector>
 #include <thread>
 #include <barrier>
-
 #include "Particle.h"
 
 constexpr uint32_t DEFAULT_NUM_PARTICLES = 1u << 25u;
@@ -57,7 +57,7 @@ void InitParticles(Particles& particles, const size_t startIdx, const size_t cou
 void UpdateParticles(Particles& particles, const size_t startIdx, const size_t count, const float deltaTime) {
     //Iterate over each particle, and update their positions. 
     for (size_t i = startIdx; i < (startIdx + count); i++) {
-        (particles.masses[i] < 0.0f) ? particles.masses[i] = FLT_EPSILON : NULL;   //Ensure the size is greater than 0. 
+        (particles.masses[i] < 0.0f) ? particles.masses[i] = FLT_EPSILON : (float)NULL;   //Ensure the size is greater than 0. 
         const float k = (1.0f / particles.masses[i]);      //Particles with more mass move slower than those with less, even at the same speed. 
         
         particles.positions[i].x += (particles.velocities[i].x * particles.speeds[i] * k * deltaTime);
