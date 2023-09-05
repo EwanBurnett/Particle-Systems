@@ -11,9 +11,14 @@
 #include <vector>
 #include <thread>
 #include <barrier>
-#include "Particle.h"
+#include <condition_variable>
+#include <mutex>
+#include <Particle.h>
+#include <CUDAUpdate.cuh>
 
-constexpr uint32_t DEFAULT_NUM_PARTICLES = 1u << 25u;
+bool g_UseCuda = true;
+
+constexpr uint32_t DEFAULT_NUM_PARTICLES = 1u << 20u;
 
 //Initialisation Defaults
 const float INITIAL_SPEED_MIN = 0.0f;
@@ -115,6 +120,8 @@ int main(int argc, const char** argv){
             t.join();
         }
 
+        //Initialize CUDA as well. 
+        CUDAInit(&particles, num_particles);
         const auto init_end = std::chrono::steady_clock::now();
         const float initTime = std::chrono::duration_cast<std::chrono::milliseconds>(init_end - init_start).count() / 1000.0f;  //Compute how long particle initialization took in ms. 
 
@@ -126,7 +133,11 @@ int main(int argc, const char** argv){
     float elapsedTime = 0.0f; 
     auto update_start = std::chrono::steady_clock::now();
 
-    //Create a synchronisation barrier to control our threads. 
+    //Create synchronisation primitives to control our threads. 
+    std::mutex lCuda;
+    std::unique_lock lkCuda(lCuda);
+    std::condition_variable cvCuda;
+
     std::barrier particle_sync(num_threads, [&] () noexcept {   //When all threads "arrive" at the barrier, this code will execute. 
         const auto update_end = std::chrono::steady_clock::now();   //Finish the current frame
 
@@ -139,8 +150,11 @@ int main(int argc, const char** argv){
 
     //Kick the update job on n threads. 
     for (size_t i = 0; i < (num_threads - 1); i++) {
-        threads[i] = std::thread([&particle_sync, &particles, i, block_size, &deltaTime] {
+        threads[i] = std::thread([&] {
             while (true) {
+            cvCuda.wait(lkCuda, [&](){
+                    return !g_UseCuda;
+                    });
                 UpdateParticles(particles, block_size * i, block_size, deltaTime);
 
                 particle_sync.arrive_and_wait();    //Wait for the other threads to finish before continuing. 
@@ -150,9 +164,17 @@ int main(int argc, const char** argv){
     
     //Perform the same work on the main thread
     while (true) {
-        UpdateParticles(particles, block_size * (num_threads - 1), (block_size + block_remainder), deltaTime);
+        //If we're using CUDA, then use the main thread to dispatch processing. 
+        if(g_UseCuda){
+            CUDAUpdate(&particles, num_particles, deltaTime);        
+            particle_sync.wait(particle_sync.arrive(particle_sync.max()));
+        }
+        else{
+            UpdateParticles(particles, block_size * (num_threads - 1), (block_size + block_remainder), deltaTime);
 
-        particle_sync.arrive_and_wait();    //Wait for the other threads to finish before continuing. 
+            particle_sync.arrive_and_wait();    //Wait for the other threads to finish before continuing. 
+        }
+
     }
 
     //When we're done, make sure to join all threads before exiting.

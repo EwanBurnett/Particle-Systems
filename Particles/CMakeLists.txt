@@ -11,7 +11,7 @@ set(Particles_SOURCES "src/main.cpp")
 # If CUDA is available, link the kernel
 if(DEFINED CMAKE_CUDA_COMPILER)
 	enable_language(CUDA)
-	set(Particles_SOURCES ${Particles_SOURCES} "src/kernel.cu")
+    set(Particles_SOURCES ${Particles_SOURCES} "src/CUDAUpdate.cu")
 	add_compile_definitions(CUDA_FOUND)
 endif()
 
