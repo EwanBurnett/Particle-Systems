@@ -10,8 +10,8 @@
 struct Particles {
     Particles(size_t num_particles) {
         //Allocate contiguous arrays for each element 
-        positions = new Vector3[num_particles];
-        velocities = new Vector3[num_particles];
+        positions = new Simulation::Vector3[num_particles];
+        velocities = new Simulation::Vector3[num_particles];
         masses = new float[num_particles];
         speeds = new float[num_particles];
     }
@@ -23,8 +23,8 @@ struct Particles {
         delete[] speeds;
     }
 
-    Vector3* positions;
-    Vector3* velocities;
+    Simulation::Vector3* positions;
+    Simulation::Vector3* velocities;
     float* masses;
     float* speeds;
 };

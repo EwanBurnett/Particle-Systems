@@ -15,18 +15,22 @@
 #include <mutex>
 #include "../include/Particle.h"
 #include "../include/CUDAUpdate.cuh"
+#include <raylib.h>
 
-bool g_UseCuda = true;
+using namespace Simulation;
+#define MAX_BATCH_ELEMENTS 8096 
+
+bool g_UseCuda = false;
 
 constexpr uint32_t DEFAULT_NUM_PARTICLES = 1u << 20u;
 
 //Initialisation Defaults
-const float INITIAL_SPEED_MIN = 0.0f;
-const float INITIAL_SPEED_MAX = 100.0f;
-const float INITIAL_SIZE_MIN = FLT_EPSILON;
-const float INITIAL_SIZE_MAX = 100.0f;
-const Vector3 INITIAL_POS_MIN = { -100.0f, -100.0f, -100.0f };
-const Vector3 INITIAL_POS_MAX = { 100.0f, 100.0f, 100.0f };
+const float INITIAL_SPEED_MIN = 100.0f;
+const float INITIAL_SPEED_MAX = 1000.0f;
+const float INITIAL_SIZE_MIN = 1.0f;
+const float INITIAL_SIZE_MAX = 10.0f;
+const Simulation::Vector3 INITIAL_POS_MIN = { 250.0f, 200.0f, -100.0f };
+const Simulation::Vector3 INITIAL_POS_MAX = { 750.0f, 600.0f, 100.0f };
 
 
 //Generates a random number between min and max. 
@@ -72,8 +76,16 @@ void UpdateParticles(Particles& particles, const size_t startIdx, const size_t c
 }
 
 
-void DrawParticles(Particles& particles){
+void DrawParticles(Particles& particles, const size_t numParticles){
 
+    BeginDrawing();
+    ClearBackground(BLACK);
+
+    for(int i = 0; i < numParticles; i++){
+        DrawPixel(particles.positions[i].x, particles.positions[i].y, RAYWHITE);
+    }
+
+    EndDrawing();
 
 }
 
@@ -82,6 +94,11 @@ void DrawParticles(Particles& particles){
 //  -t / -threads : How many threads to launch
 int main(int argc, const char** argv){
     
+    const int windowWidth = 1000;
+    const int windowHeight = 800;
+
+    InitWindow(windowWidth, windowHeight, "Particle Simulation");
+
     uint32_t num_particles = DEFAULT_NUM_PARTICLES;
     uint32_t num_threads = std::thread::hardware_concurrency();     //Use as many threads as possible by default.
 
@@ -133,16 +150,16 @@ int main(int argc, const char** argv){
         printf("Particle Initialization Complete in %fms.\n", initTime);
     }
  
-    float updateTime = 0.0f;
-    while(true)
-    {
-        const auto update_start = std::chrono::steady_clock::now();   //Finish the current frame
-        CUDAUpdate(&particles, num_particles, updateTime);        
-        const auto update_end = std::chrono::steady_clock::now();   //Finish the current frame
-        updateTime = std::chrono::duration_cast<std::chrono::milliseconds>(update_end - update_start).count() / 1000.0f; //Delta Time is in Milliseconds
+    //float updateTime = 0.0f;
+    //while(true)
+    //{
+    //    const auto update_start = std::chrono::steady_clock::now();   //Finish the current frame
+    //    CUDAUpdate(&particles, num_particles, updateTime);        
+    //    const auto update_end = std::chrono::steady_clock::now();   //Finish the current frame
+    //    updateTime = std::chrono::duration_cast<std::chrono::milliseconds>(update_end - update_start).count() / 1000.0f; //Delta Time is in Milliseconds
 
-    printf("\r[CUDA] Updated %d particles in %fms", num_particles, updateTime);   
-    }
+    //printf("\r[CUDA] Updated %d particles in %fms", num_particles, updateTime);   
+    //}
     //Simulate Particles across our Threads.
     float deltaTime = 0.0f;
     float elapsedTime = 0.0f; 
@@ -187,7 +204,7 @@ int main(int argc, const char** argv){
             UpdateParticles(particles, block_size * (num_threads - 1), (block_size + block_remainder), deltaTime);
 
             particle_sync.arrive_and_wait();    //Wait for the other threads to finish before continuing. 
-            DrawParticles(particles);
+            DrawParticles(particles, num_particles);
         }
 
     }
@@ -197,4 +214,5 @@ int main(int argc, const char** argv){
         t.join();
     }
 
+    CloseWindow(); 
 }
