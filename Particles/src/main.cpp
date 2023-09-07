@@ -24,7 +24,7 @@ bool g_UseCuda = false;
 
 constexpr uint32_t DEFAULT_NUM_PARTICLES = 1u << 20u;
 
-//Initialisation Defaults
+//Initialisation  Defaults
 const float INITIAL_SPEED_MIN = 100.0f;
 const float INITIAL_SPEED_MAX = 1000.0f;
 const float INITIAL_SIZE_MIN = 1.0f;
@@ -162,17 +162,17 @@ int main(int argc, const char** argv){
         printf("Particle Initialization Complete in %fms.\n", initTime);
     }
  
-    float updateTime = 0.0f;
-    while(true)
-    {
-        const auto update_start = std::chrono::steady_clock::now();   //Finish the current frame
-        CUDAUpdate(&particles, num_particles, updateTime);        
-        const auto update_end = std::chrono::steady_clock::now();   //Finish the current frame
-        updateTime = std::chrono::duration_cast<std::chrono::milliseconds>(update_end - update_start).count() / 1000.0f; //Delta Time is in Milliseconds
+    //float updateTime = 0.0f;
+    //while(true)
+    //{
+    //    const auto update_start = std::chrono::steady_clock::now();   //Finish the current frame
+    //    CUDAUpdate(&particles, num_particles, updateTime);        
+    //    const auto update_end = std::chrono::steady_clock::now();   //Finish the current frame
+    //    updateTime = std::chrono::duration_cast<std::chrono::milliseconds>(update_end - update_start).count() / 1000.0f; //Delta Time is in Milliseconds
 
-    printf("\r[CUDA] Updated %d particles in %fms", num_particles, updateTime);   
-    DrawParticles(particles, num_particles);
-    }
+    //printf("\r[CUDA] Updated %d particles in %fms", num_particles, updateTime);   
+    //DrawParticles(particles, num_particles);
+    //}
 
     //Simulate Particles across our Threads.
     float deltaTime = 0.0f;
@@ -196,7 +196,7 @@ int main(int argc, const char** argv){
 
     //Kick the update job on n threads. 
     for (size_t i = 0; i < (num_threads - 1); i++) {
-        threads[i] = std::thread([&] {
+        threads[i] = std::thread([&, i] {
             while (true) {
             cvCuda.wait(lkCuda, [&](){
                     return !g_UseCuda;
@@ -210,6 +210,13 @@ int main(int argc, const char** argv){
     
     //Perform the same work on the main thread
     while (true) {
+        if (IsKeyPressed(KEY_SPACE)) {
+            g_UseCuda = !g_UseCuda;
+        }
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            break;
+        }
+
         //If we're using CUDA, then use the main thread to dispatch processing. 
         if(g_UseCuda){
             CUDAUpdate(&particles, num_particles, deltaTime);        
@@ -218,8 +225,9 @@ int main(int argc, const char** argv){
             UpdateParticles(particles, block_size * (num_threads - 1), (block_size + block_remainder), deltaTime);
 
             particle_sync.arrive_and_wait();    //Wait for the other threads to finish before continuing. 
-            DrawParticles(particles, num_particles);
         }
+
+        DrawParticles(particles, num_particles);
 
     }
 

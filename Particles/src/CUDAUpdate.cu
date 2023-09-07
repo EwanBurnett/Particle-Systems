@@ -64,6 +64,6 @@ void CUDAUpdate(Particles* pParticles, const size_t count, const float deltaTime
     //Copy the updated particle data back to the host 
     cudaMemcpy(pParticles->positions, g_pDevPositions, count * sizeof(Simulation::Vector3), cudaMemcpyDeviceToHost);
 
-    //printf("\r[CUDA] Updated %d particles in %fms", count, updateTime);   
+    printf("\r[CUDA] Updated %d particles in %fms", count, deltaTime);   
     
 }
