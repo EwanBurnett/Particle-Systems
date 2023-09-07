@@ -13,8 +13,8 @@
 #include <barrier>
 #include <condition_variable>
 #include <mutex>
-#include <Particle.h>
-#include <CUDAUpdate.cuh>
+#include "../include/Particle.h"
+#include "../include/CUDAUpdate.cuh"
 
 bool g_UseCuda = true;
 
@@ -72,6 +72,11 @@ void UpdateParticles(Particles& particles, const size_t startIdx, const size_t c
 }
 
 
+void DrawParticles(Particles& particles){
+
+
+}
+
 //Launch the application
 //  -p / -particles : How many particles to simulate
 //  -t / -threads : How many threads to launch
@@ -127,7 +132,17 @@ int main(int argc, const char** argv){
 
         printf("Particle Initialization Complete in %fms.\n", initTime);
     }
+ 
+    float updateTime = 0.0f;
+    while(true)
+    {
+        const auto update_start = std::chrono::steady_clock::now();   //Finish the current frame
+        CUDAUpdate(&particles, num_particles, updateTime);        
+        const auto update_end = std::chrono::steady_clock::now();   //Finish the current frame
+        updateTime = std::chrono::duration_cast<std::chrono::milliseconds>(update_end - update_start).count() / 1000.0f; //Delta Time is in Milliseconds
 
+    printf("\r[CUDA] Updated %d particles in %fms", num_particles, updateTime);   
+    }
     //Simulate Particles across our Threads.
     float deltaTime = 0.0f;
     float elapsedTime = 0.0f; 
@@ -167,12 +182,12 @@ int main(int argc, const char** argv){
         //If we're using CUDA, then use the main thread to dispatch processing. 
         if(g_UseCuda){
             CUDAUpdate(&particles, num_particles, deltaTime);        
-            particle_sync.wait(particle_sync.arrive(particle_sync.max()));
         }
         else{
             UpdateParticles(particles, block_size * (num_threads - 1), (block_size + block_remainder), deltaTime);
 
             particle_sync.arrive_and_wait();    //Wait for the other threads to finish before continuing. 
+            DrawParticles(particles);
         }
 
     }
