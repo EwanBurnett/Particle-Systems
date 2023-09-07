@@ -58,6 +58,18 @@ void InitParticles(Particles& particles, const size_t startIdx, const size_t cou
         particles.velocities[i].x = RandomRange(-1.0f, 1.0f); 
         particles.velocities[i].y = RandomRange(-1.0f, 1.0f);
         particles.velocities[i].z = RandomRange(-1.0f, 1.0f);
+
+        uint8_t r = (uint8_t)(RandomRange(0.0f, 1.0f) * 255.99f);
+        uint8_t g = (uint8_t)(RandomRange(0.0f, 1.0f) * 255.99f);
+        uint8_t b = (uint8_t)(RandomRange(0.0f, 1.0f) * 255.99f);
+
+        Color c;
+        c.r = r; 
+        c.g = g;
+        c.b = b;
+        c.a = 255;
+        particles.colours[i] = c;
+        int a = 1;
     }
 }
 
@@ -82,7 +94,7 @@ void DrawParticles(Particles& particles, const size_t numParticles){
     ClearBackground(BLACK);
 
     for(int i = 0; i < numParticles; i++){
-        DrawPixel(particles.positions[i].x, particles.positions[i].y, RAYWHITE);
+        DrawPixel(particles.positions[i].x, particles.positions[i].y, particles.colours[i]);
     }
 
     EndDrawing();
@@ -150,16 +162,18 @@ int main(int argc, const char** argv){
         printf("Particle Initialization Complete in %fms.\n", initTime);
     }
  
-    //float updateTime = 0.0f;
-    //while(true)
-    //{
-    //    const auto update_start = std::chrono::steady_clock::now();   //Finish the current frame
-    //    CUDAUpdate(&particles, num_particles, updateTime);        
-    //    const auto update_end = std::chrono::steady_clock::now();   //Finish the current frame
-    //    updateTime = std::chrono::duration_cast<std::chrono::milliseconds>(update_end - update_start).count() / 1000.0f; //Delta Time is in Milliseconds
+    float updateTime = 0.0f;
+    while(true)
+    {
+        const auto update_start = std::chrono::steady_clock::now();   //Finish the current frame
+        CUDAUpdate(&particles, num_particles, updateTime);        
+        const auto update_end = std::chrono::steady_clock::now();   //Finish the current frame
+        updateTime = std::chrono::duration_cast<std::chrono::milliseconds>(update_end - update_start).count() / 1000.0f; //Delta Time is in Milliseconds
 
-    //printf("\r[CUDA] Updated %d particles in %fms", num_particles, updateTime);   
-    //}
+    printf("\r[CUDA] Updated %d particles in %fms", num_particles, updateTime);   
+    DrawParticles(particles, num_particles);
+    }
+
     //Simulate Particles across our Threads.
     float deltaTime = 0.0f;
     float elapsedTime = 0.0f; 
