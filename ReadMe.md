@@ -2,15 +2,25 @@
 
 A Project exploring how Parallelism can be used to simulate a large number of Particles, using C++, Compute Shaders and NVidia's [CUDA](https://developer.nvidia.com/cuda-toolkit). 
 
+- This Project is licensed under the MIT License 
+
 ## Build Instructions
-Clone the Project by using 
+
+note: Requires C++ 20 
+    - GCC 10 or above
+- Install the latest CUDA Toolkit for your platform
+    - Windows 
+        - Follow the download instructions on the [CUDA Toolkit Developer Portal](https://developer.nvidia.com/cuda-toolkit)
+    
+
+- Clone the Project by using 
 ``` bash
 git clone https://github.com/EwanBurnett/Particle-Systems/ 
 cd Particle-Systems
 ```
 
 ### CMake
-- Requires CMake 3.9 or greater ([CMake.org](https://cmake.org))
+- Requires CMake 3.12 or greater ([CMake.org](https://cmake.org))
 
 ``` bash
 mkdir build && cd build
