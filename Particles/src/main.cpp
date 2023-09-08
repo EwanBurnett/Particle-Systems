@@ -88,7 +88,7 @@ void UpdateParticles(Particles& particles, const size_t startIdx, const size_t c
 }
 
 
-void DrawParticles(Particles& particles, const size_t numParticles){
+void DrawParticles(Particles& particles, const size_t numParticles, const float deltaTime, const int numThreads){
 
     BeginDrawing();
     ClearBackground(BLACK);
@@ -96,7 +96,25 @@ void DrawParticles(Particles& particles, const size_t numParticles){
     for(int i = 0; i < numParticles; i++){
         DrawPixel(particles.positions[i].x, particles.positions[i].y, particles.colours[i]);
     }
+       
+    if (g_UseCuda)
+    {
+        DrawText("- CUDA -", 10, 10, 20, WHITE);
+    }
+    else {
+        char cpuData[30];
+        sprintf(cpuData, "- CPU - [%d threads]", numThreads);
+        DrawText(cpuData, 10, 10, 20, WHITE);
+    }
 
+    char framerate[16];
+    sprintf(framerate, "%d FPS", (int)(1.0f / deltaTime));
+    DrawText(framerate, 920, 10, 20, WHITE);
+
+    char particleCount[100]; 
+    sprintf(particleCount, "Simulating %d Particles", numParticles);
+    DrawText(particleCount, 10, 770, 20, WHITE);
+    
     EndDrawing();
 
 }
@@ -162,23 +180,14 @@ int main(int argc, const char** argv){
         printf("Particle Initialization Complete in %fms.\n", initTime);
     }
  
-    //float updateTime = 0.0f;
-    //while(true)
-    //{
-    //    const auto update_start = std::chrono::steady_clock::now();   //Finish the current frame
-    //    CUDAUpdate(&particles, num_particles, updateTime);        
-    //    const auto update_end = std::chrono::steady_clock::now();   //Finish the current frame
-    //    updateTime = std::chrono::duration_cast<std::chrono::milliseconds>(update_end - update_start).count() / 1000.0f; //Delta Time is in Milliseconds
-
-    //printf("\r[CUDA] Updated %d particles in %fms", num_particles, updateTime);   
-    //DrawParticles(particles, num_particles);
-    //}
-
     //Simulate Particles across our Threads.
     float deltaTime = 0.0f;
     float elapsedTime = 0.0f; 
     auto update_start = std::chrono::steady_clock::now();
+    SetExitKey(KEY_ESCAPE);
 
+    bool quit = false;
+    
     //Create synchronisation primitives to control our threads. 
     std::mutex lCuda;
     std::unique_lock lkCuda(lCuda);
@@ -197,7 +206,7 @@ int main(int argc, const char** argv){
     //Kick the update job on n threads. 
     for (size_t i = 0; i < (num_threads - 1); i++) {
         threads[i] = std::thread([&, i] {
-            while (true) {
+            while (!quit) {
             cvCuda.wait(lkCuda, [&](){
                     return !g_UseCuda;
                     });
@@ -209,12 +218,20 @@ int main(int argc, const char** argv){
     }
     
     //Perform the same work on the main thread
-    while (true) {
+    while (!quit) {
         if (IsKeyPressed(KEY_SPACE)) {
             g_UseCuda = !g_UseCuda;
+            if (g_UseCuda) {
+                printf("\nSimulating With CUDA.\n");
+                cvCuda.notify_all(); 
+            }
+            else {
+                printf("\nSimulating on the CPU.\n");
+                cvCuda.notify_all(); 
+            }
         }
-        if (IsKeyPressed(KEY_ESCAPE)) {
-            break;
+        if (IsKeyPressed(KEY_ESCAPE) || WindowShouldClose()) {
+            quit = true;
         }
 
         //If we're using CUDA, then use the main thread to dispatch processing. 
@@ -227,7 +244,7 @@ int main(int argc, const char** argv){
             particle_sync.arrive_and_wait();    //Wait for the other threads to finish before continuing. 
         }
 
-        DrawParticles(particles, num_particles);
+        DrawParticles(particles, num_particles, deltaTime, num_threads);
 
     }
 

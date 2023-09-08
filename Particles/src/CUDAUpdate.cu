@@ -57,13 +57,16 @@ void CUDAUpdate(Particles* pParticles, const size_t count, const float deltaTime
 
     Update_Particles<<<blocksPerGrid, threadsPerBlock>>>((Simulation::Vector3*)g_pDevPositions, (Simulation::Vector3*)g_pDevVelocities, (float*)g_pDevSpeeds, (float*)g_pDevMasses, count, deltaTime);
     
-    cudaError_t error = cudaDeviceSynchronize(); 
+    cudaError_t error = cudaDeviceSynchronize();
     if (error != cudaSuccess) {
-        printf("Uh oh!\n%s\n", cudaGetErrorString(error));
+        printf("Error: %s\r", cudaGetErrorString(error));
+        return;
     }
     //Copy the updated particle data back to the host 
     cudaMemcpy(pParticles->positions, g_pDevPositions, count * sizeof(Simulation::Vector3), cudaMemcpyDeviceToHost);
 
+
+    
     printf("\r[CUDA] Updated %d particles in %fms", count, deltaTime);   
     
 }
